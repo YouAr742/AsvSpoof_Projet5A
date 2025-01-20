@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Uploader ou Enregistrer un Fichier Audio</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            max-width: 600px;
+            background-color: #f9f9f9;
+        }
+        h1 {
+            text-align: center;
+        }
+        input[type="file"] {
+            margin: 10px 0;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #response {
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Uploader ou Enregistrer un Fichier Audio</h1>
+
+    <h2>Uploader un Fichier Audio</h2>
+    <form id="upload-form">
+        <input type="file" id="fileElem" accept="audio/*" required>
+        <button type="submit">Uploader le fichier</button>
+    </form>
+
+    <h2>Enregistrer un Fichier Audio</h2>
+    <button id="start-recording">Commencer l'Enregistrement</button>
+    <button id="stop-recording" disabled>Arrêter l'Enregistrement</button>
+
+    <div id="response"></div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+
+        // Gestion de l'upload
+        document.getElementById('upload-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('fileElem');
+            const files = fileInput.files;
+
+            if (files.length === 0) {
+                document.getElementById('response').textContent = "Veuillez sélectionner un fichier audio.";
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', files[0]);
+
+            try {
+                const response = await fetch('http://127.0.0.1:8000/upload_audio/', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error('Erreur lors de l\'upload du fichier : ' + JSON.stringify(errorData));
+                }
+
+                // Traiter la réponse pour l'upload
+                const data = await response.blob();
+                const url = window.URL.createObjectURL(data);
+                document.getElementById('response').innerHTML = `
+                    Fichier uploadé avec succès. 
+                    <a href="${url}" download>Télécharger le fichier</a>
+                `;
+            } catch (error) {
+                document.getElementById('response').textContent = error.message;
+            }
+        });
+
+        // Gestion de l'enregistrement
+        document.getElementById('start-recording').addEventListener('click', async () => {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+
+            mediaRecorder.ondataavailable = event => {
+                audioChunks.push(event.data);
+            };
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                audioChunks = [];
+
+                const formData = new FormData();
+                formData.append('file', audioBlob, 'enregistrement.wav'); // Nom du fichier
+
+                try {
+                    const response = await fetch('http://127.0.0.1:8000/upload_audio/', {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error('Erreur lors de l\'upload du fichier : ' + JSON.stringify(errorData));
+                    }
+
+                    // Traiter la réponse pour l'enregistrement
+                    const data = await response.blob();
+                    const url = window.URL.createObjectURL(data);
+                    document.getElementById('response').innerHTML = `
+                        Fichier enregistré et uploadé avec succès. 
+                        <a href="${url}" download>Télécharger le fichier</a>
+                    `;
+                } catch (error) {
+                    document.getElementById('response').textContent = error.message;
+                }
+            };
+
+            mediaRecorder.start();
+            document.getElementById('start-recording').disabled = true;
+            document.getElementById('stop-recording').disabled = false;
+        });
+
+        document.getElementById('stop-recording').addEventListener('click', () => {
+            mediaRecorder.stop();
+            document.getElementById('start-recording').disabled = false;
+            document.getElementById('stop-recording').disabled = true;
+        });
+    </script>
+</body>
+</html>
