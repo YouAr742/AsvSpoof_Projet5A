@@ -4,7 +4,7 @@ import torchaudio
 import numpy as np
 from torch import nn
 import torch.nn.functional as F
-from fastapi import FastAPI, UploadFile, HTTPException
+from fastapi import FastAPI, UploadFile, HTTPException, File
 import nest_asyncio
 import uvicorn
 from model_utils import Model  # Assurez-vous que la classe Model est correctement importée
@@ -13,7 +13,8 @@ import soundfile as sf
 import io
 import tempfile
 from fastapi.middleware.cors import CORSMiddleware
-
+from typing import List, Union
+from calculate_modules import compute_eer  # Importer la fonction compute_eer
 
 # App FastAPI
 app = FastAPI()
@@ -27,7 +28,6 @@ app.add_middleware(
     allow_headers=["*"],  # Autorise tous les en-têtes
 )
 
-
 # Charger la configuration du modèle
 def load_config(config_path):
     try:
@@ -38,7 +38,6 @@ def load_config(config_path):
         raise HTTPException(status_code=500, detail=f"Erreur lors du chargement de la configuration: {e}")
 
 # Charger le modèle
-# Function to load the model
 def load_model(checkpoint_path, d_args):
     model = Model(d_args)
     try:
@@ -91,35 +90,67 @@ d_args = config["model_config"]
 checkpoint_path = "./Ex4_CLspeaker_sampler_eer0.164.pth"  # Remplacez par votre checkpoint
 model = load_model(checkpoint_path, d_args)
 
-# Route API pour la prédiction
 @app.post("/predict/")
-async def predict(file: UploadFile):
+async def predict(files: Union[List[UploadFile], UploadFile] = File(...)):
+    # Si un seul fichier est uploadé, le convertir en liste pour un traitement uniforme
+    if not isinstance(files, list):
+        files = [files]
 
-    
-    try:
-        print(f"predict :::")
+    responses = []
+    bonafide_scores = []
+    spoof_scores = []
 
-        # Sauvegarder temporairement le fichier audio
-        temp_audio_path = f"{file.filename}"
-        print(temp_audio_path)
-        with open(temp_audio_path, "wb") as f:
-            f.write(await file.read())
-        #torchaudio.save(temp_audio_path+".flac", await file.read(), 16000 , format="flac")
+    for file in files:
+        try:
+            print(f"Processing file: {file.filename}")
 
-        # Prétraiter le fichier audio
-        waveform = preprocess_audio(temp_audio_path)
+            # Sauvegarder temporairement le fichier audio
+            temp_audio_path = f"{file.filename}"
+            print(temp_audio_path)
+            with open(temp_audio_path, "wb") as f:
+                f.write(await file.read())
 
-        # Effectuer l'inférence
-        label, confidence = infer(model, waveform)
+            # Prétraiter le fichier audio
+            waveform = preprocess_audio(temp_audio_path)
 
-        # Interpréter le label
-        response = {
-            "label": "Genuine" if label == 0 else "Spoof",
-            "confidence": confidence
-        }
-        return response
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+            # Effectuer l'inférence
+            label, confidence = infer(model, waveform)
+
+            # Stocker les scores pour le calcul de l'EER
+            if label == 0:  # Bonafide
+                bonafide_scores.append(confidence)
+            else:  # Spoof
+                spoof_scores.append(confidence)
+
+            # Interpréter le label
+            response = {
+                "filename": file.filename,
+                "label": "Genuine" if label == 0 else "Spoof",
+                "confidence": confidence
+            }
+            responses.append(response)
+        except Exception as e:
+            responses.append({
+                "filename": file.filename,
+                "error": str(e)
+            })
+
+    # Afficher les scores collectés pour déboguer
+    print("Scores bonafide :", bonafide_scores)
+    print("Scores spoof :", spoof_scores)
+
+    # Calculer l'EER si nous avons des scores pour bonafide et spoof
+    if bonafide_scores and spoof_scores:
+        eer, _, _, _ = compute_eer(np.array(bonafide_scores), np.array(spoof_scores))
+        eer_percentage = eer * 100
+        responses.append({
+            "EER": f"{eer_percentage:.2f}%"
+        })
+        print(f"EER calculé : {eer_percentage:.2f}%")  # Afficher l'EER dans la console
+    else:
+        print("Pas assez de données pour calculer l'EER.")
+
+    return responses
 
 # Exécuter le serveur FastAPI dans Colab
 nest_asyncio.apply()

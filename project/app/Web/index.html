@@ -5,50 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Audio Analysis API</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      background-color: #f4f4f9;
-      text-align: center;
-    }
-    h1 {
-      color: #333;
-    }
-    .container {
-      max-width: 600px;
-      margin: auto;
-      background: #fff;
-      padding: 20px;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-      border-radius: 10px;
-    }
-    .response {
-      margin-top: 20px;
-      font-size: 1.2em;
-      color: green;
-    }
-    button {
-      padding: 10px 20px;
-      margin: 10px;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #0056b3;
-    }
-    input[type="file"] {
-      margin: 10px 0;
-    }
-    a {
-      color: #007bff;
-      text-decoration: none;
-    }
-    a:hover {
-      text-decoration: underline;
-    }
+    /* Your existing CSS */
   </style>
 </head>
 <body>
@@ -58,7 +15,7 @@
     
     <!-- Form for Uploading File -->
     <form id="upload-form">
-      <input type="file" id="audio-file" accept="audio/*" />
+      <input type="file" id="audio-file" name="audio-file" multiple accept="audio/*">
       <button type="button" id="upload-button">Upload & Analyze</button>
     </form>
     
@@ -69,18 +26,17 @@
       <button id="recordButton">Record</button>
       <button id="pauseButton" disabled>Pause</button>
       <button id="stopButton" disabled>Stop</button>
-     </div>
-     <div id="formats">Format: start recording to see sample rate</div>
-     <p><strong>Recordings:</strong></p>
-     <ol id="recordingsList"></ol>
-     <!-- inserting these scripts at the end to be able to use all the elements in the DOM -->
-     <script src="js/recorder.js"></script>
-     <script src="js/app.js"></script>
+    </div>
+    <div id="formats">Format: start recording to see sample rate</div>
+    <p><strong>Recordings:</strong></p>
+    <ol id="recordingsList"></ol>
     
     <!-- Response Display -->
     <div class="response" id="response"></div>
   </div>
 
+  <!-- Load Recorder.js and your script.js -->
+  <script src="recorder.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
